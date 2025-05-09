@@ -1,3 +1,0 @@
-[submodule "protos/mahjongapis"]
-	path = protos/mahjongapis
-	url = https://github.com/mahjongtable/mahjongapis.git
