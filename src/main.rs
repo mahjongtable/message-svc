@@ -20,10 +20,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // init and load app settings
     let app_settings = settings::AppSettings::new("settings.toml")?;
 
-    // @deprecated init env
-    #[deprecated(note = "The dotenvy loading config is going to deprecate at next version")]
-    dotenvy::dotenv().expect(".env file doesn't exist");
-
     let message_svc = MessageService {
         settings: ArcSwap::from(Arc::new(app_settings)),
     };
@@ -53,12 +49,8 @@ impl Message for MessageService {
         &self,
         req: Request<SendEmailRequest>,
     ) -> Result<Response<SendEmailResponse>, Status> {
+        // get mail config
         let mail_cfg = &self.settings.load().mail;
-
-        // return Ok(Response::new(SendEmailResponse {
-        //     status: true,
-        //     message: "ok".to_string(),
-        // }));
 
         // sender values
         let from_value = format!("{} <{}>", mail_cfg.from_name, mail_cfg.from_address)
@@ -81,7 +73,7 @@ impl Message for MessageService {
         let credentials = Credentials::new(mail_cfg.username.clone(), mail_cfg.password.clone());
 
         let mailer = SmtpTransport::relay(&mail_cfg.host)
-            .unwrap()
+            .map_err(|err| Status::internal(&err.to_string()))?
             .credentials(credentials)
             .build();
 
@@ -97,10 +89,5 @@ impl Message for MessageService {
                 return Err(Status::internal(err_msg));
             }
         }
-
-        // Ok(Response::new(SendEmailResponse {
-        //     status: true,
-        //     message: "ok".to_string(),
-        // }))
     }
 }
