@@ -65,7 +65,7 @@ impl Message for MessageService {
             .from(from_value)
             // .reply_to("Yuin <yuin@domain@tld>".parse().unwrap())
             .to(to_value)
-            .subject("TBD") // TODO: Add subject request value
+            .subject(req.get_ref().subject.clone().unwrap_or("No subject".into()))
             .header(ContentType::TEXT_PLAIN)
             .body(req.get_ref().message_text.clone())
             .unwrap();
@@ -90,4 +90,9 @@ impl Message for MessageService {
             }
         }
     }
+}
+
+#[allow(unused)]
+async fn send_with_html(to_email: &str, subject: &str, html_text: &str) {
+    todo!()
 }
