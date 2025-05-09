@@ -1,21 +1,32 @@
-use std::env;
+use std::{env, rc::Rc, sync::Arc};
 
+use arc_swap::ArcSwap;
 use lettre::{
-    Message as EmailMessage, SmtpTransport, Transport, message::header::ContentType,
+    Message as EmailMessage, SmtpTransport, Transport,
+    message::{MaybeString, header::ContentType},
     transport::smtp::authentication::Credentials,
 };
-use message_svc::pb::{
-    SendEmailRequest, SendEmailResponse, SendSmsRequest, SendSmsResponse,
-    message_server::{Message, MessageServer},
+use message_svc::{
+    pb::{
+        SendEmailRequest, SendEmailResponse, SendSmsRequest, SendSmsResponse,
+        message_server::{Message, MessageServer},
+    },
+    settings::{self, AppSettings},
 };
 use tonic::{Request, Response, Status};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // init env
+    // init and load app settings
+    let app_settings = settings::AppSettings::new("settings.toml")?;
+
+    // @deprecated init env
+    #[deprecated(note = "The dotenvy loading config is going to deprecate at next version")]
     dotenvy::dotenv().expect(".env file doesn't exist");
 
-    let message_svc = MessageService {};
+    let message_svc = MessageService {
+        settings: ArcSwap::from(Arc::new(app_settings)),
+    };
 
     tonic::transport::Server::builder()
         .add_service(MessageServer::new(message_svc))
@@ -25,7 +36,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub struct MessageService {}
+pub struct MessageService {
+    settings: ArcSwap<AppSettings>,
+}
 
 #[tonic::async_trait]
 impl Message for MessageService {
@@ -40,20 +53,15 @@ impl Message for MessageService {
         &self,
         req: Request<SendEmailRequest>,
     ) -> Result<Response<SendEmailResponse>, Status> {
-        // env values
-        let mail_host = env::var("MAIL_HOST")
-            .map_err(|_| Status::internal("MAIL_HOST in the env file doesn't exist"))?;
-        let mail_from_name = env::var("MAIL_FROM_NAME")
-            .map_err(|_| Status::internal("MAIL_FROM_NAME in the env file doesn't exist"))?;
-        let mail_from_address = env::var("MAIL_FROM_ADDRESS")
-            .map_err(|_| Status::internal("MAIL_FROM_ADDRESS in the env file doesn't exist"))?;
-        let mail_username = env::var("MAIL_USERNAME")
-            .map_err(|_| Status::internal("MAIL_USERNAME in the env file doesn't exist"))?;
-        let mail_password = env::var("MAIL_PASSWORD")
-            .map_err(|_| Status::internal("MAIL_PASSWORD in the env file doesn't exist"))?;
+        let mail_cfg = &self.settings.load().mail;
+
+        // return Ok(Response::new(SendEmailResponse {
+        //     status: true,
+        //     message: "ok".to_string(),
+        // }));
 
         // sender values
-        let from_value = format!("{} <{}>", mail_from_name, mail_from_address)
+        let from_value = format!("{} <{}>", mail_cfg.from_name, mail_cfg.from_address)
             .parse()
             .map_err(|_| Status::internal("invalid 'From' email value"))?;
 
@@ -67,21 +75,18 @@ impl Message for MessageService {
             .to(to_value)
             .subject("TBD") // TODO: Add subject request value
             .header(ContentType::TEXT_PLAIN)
-            .body(String::from("Be Happy"))
+            .body(req.get_ref().message_text.clone())
             .unwrap();
 
-        let credentials = Credentials::new(
-            mail_username,
-            mail_password,
-        );
+        let credentials = Credentials::new(mail_cfg.username.clone(), mail_cfg.password.clone());
 
-        let mailer = SmtpTransport::relay(&mail_host)
+        let mailer = SmtpTransport::relay(&mail_cfg.host)
             .unwrap()
             .credentials(credentials)
             .build();
 
         match mailer.send(&message) {
-            Ok(o_o) => {
+            Ok(_) => {
                 return Ok(Response::new(SendEmailResponse {
                     status: true,
                     message: "sent successfully".to_string(),

@@ -1,0 +1,9 @@
+[mail]
+driver = "smtp"
+host = "smtp.163.com"
+port = 25
+username = "debugillus1on@163.com"
+password = "NLa6933hTdPg72Nk"
+# encryption = "null"
+from_address = "debugillus1on@163.com"
+from_name = "Mahjong Project"
