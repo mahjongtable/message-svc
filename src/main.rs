@@ -1,9 +1,8 @@
-use std::{env, rc::Rc, sync::Arc};
+use std::sync::Arc;
 
 use arc_swap::ArcSwap;
 use lettre::{
-    Message as EmailMessage, SmtpTransport, Transport,
-    message::{MaybeString, header::ContentType},
+    Message as EmailMessage, SmtpTransport, Transport, message::header::ContentType,
     transport::smtp::authentication::Credentials,
 };
 use message_svc::{
@@ -40,7 +39,7 @@ pub struct MessageService {
 impl Message for MessageService {
     async fn send_sms(
         &self,
-        req: Request<SendSmsRequest>,
+        _req: Request<SendSmsRequest>,
     ) -> Result<Response<SendSmsResponse>, Status> {
         todo!()
     }
